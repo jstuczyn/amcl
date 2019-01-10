@@ -19,7 +19,7 @@ under the License.
 
 /* Boneh-Lynn-Shacham  API Functions */
 
-package XXX
+package BN254
 
 import "github.com/jstuczyn/amcl/version3/go/amcl"
 
@@ -32,7 +32,7 @@ const BLS_FAIL int = -1
 
 /* hash a message to an ECP point, using SHA3 */
 
-func bls192_hash(m string) *ECP {
+func bls_hash(m string) *ECP {
 	sh := amcl.NewSHA3(amcl.SHA3_SHAKE256)
 	var hm [BFS]byte
 	t := []byte(m)
@@ -47,7 +47,7 @@ func bls192_hash(m string) *ECP {
 /* generate key pair, private key S, public key W */
 
 func KeyPairGenerate(rng *amcl.RAND, S []byte, W []byte) int {
-	G := ECP4_generator()
+	G := ECP2_generator()
 	q := NewBIGints(CURVE_Order)
 	s := Randomnum(q, rng)
 	s.ToBytes(S)
@@ -59,7 +59,7 @@ func KeyPairGenerate(rng *amcl.RAND, S []byte, W []byte) int {
 /* Sign message m using private key S to produce signature SIG */
 
 func Sign(SIG []byte, m string, S []byte) int {
-	D := bls192_hash(m)
+	D := bls_hash(m)
 	s := FromBytes(S)
 	D = G1mul(D, s)
 	D.ToBytes(SIG, true)
@@ -69,10 +69,10 @@ func Sign(SIG []byte, m string, S []byte) int {
 /* Verify signature given message m, the signature SIG, and the public key W */
 
 func Verify(SIG []byte, m string, W []byte) int {
-	HM := bls192_hash(m)
+	HM := bls_hash(m)
 	D := ECP_fromBytes(SIG)
-	G := ECP4_generator()
-	PK := ECP4_fromBytes(W)
+	G := ECP2_generator()
+	PK := ECP2_fromBytes(W)
 	D.neg()
 	v := Ate2(G, D, PK, HM)
 	v = Fexp(v)

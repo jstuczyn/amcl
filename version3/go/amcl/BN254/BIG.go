@@ -19,7 +19,7 @@ under the License.
 
 /* AMCL BIG number class */
 
-package XXX
+package BN254
 
 import "strconv"
 import "github.com/jstuczyn/amcl/version3/go/amcl"

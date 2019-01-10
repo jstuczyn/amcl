@@ -19,7 +19,7 @@ under the License.
 
 /* MPIN API Functions */
 
-package XXX
+package BN254
 
 import "time"
 import "github.com/jstuczyn/amcl/version3/go/amcl"
@@ -40,52 +40,35 @@ const PBLEN int32 = 14     /* Number of bits in PIN */
 const TS int = 10          /* 10 for 4 digit PIN, 14 for 6-digit PIN - 2^TS/TS approx = sqrt(MAXPIN) */
 const TRAP int = 200       /* 200 for 4 digit PIN, 2000 for 6-digit PIN  - approx 2*sqrt(MAXPIN) */
 
-func mpin_hash(sha int, c *FP8, U *ECP) []byte {
+func mpin_hash(sha int, c *FP4, U *ECP) []byte {
 	var w [MFS]byte
-	var t [10 * MFS]byte
+	var t [6 * MFS]byte
 	var h []byte
 
-	c.geta().geta().GetA().ToBytes(w[:])
+	c.geta().GetA().ToBytes(w[:])
 	for i := 0; i < MFS; i++ {
 		t[i] = w[i]
 	}
-	c.geta().geta().GetB().ToBytes(w[:])
+	c.geta().GetB().ToBytes(w[:])
 	for i := MFS; i < 2*MFS; i++ {
 		t[i] = w[i-MFS]
 	}
-	c.geta().getb().GetA().ToBytes(w[:])
+	c.getb().GetA().ToBytes(w[:])
 	for i := 2 * MFS; i < 3*MFS; i++ {
 		t[i] = w[i-2*MFS]
 	}
-	c.geta().getb().GetB().ToBytes(w[:])
+	c.getb().GetB().ToBytes(w[:])
 	for i := 3 * MFS; i < 4*MFS; i++ {
 		t[i] = w[i-3*MFS]
 	}
 
-	c.getb().geta().GetA().ToBytes(w[:])
+	U.GetX().ToBytes(w[:])
 	for i := 4 * MFS; i < 5*MFS; i++ {
 		t[i] = w[i-4*MFS]
 	}
-	c.getb().geta().GetB().ToBytes(w[:])
+	U.GetY().ToBytes(w[:])
 	for i := 5 * MFS; i < 6*MFS; i++ {
 		t[i] = w[i-5*MFS]
-	}
-	c.getb().getb().GetA().ToBytes(w[:])
-	for i := 6 * MFS; i < 7*MFS; i++ {
-		t[i] = w[i-6*MFS]
-	}
-	c.getb().getb().GetB().ToBytes(w[:])
-	for i := 7 * MFS; i < 8*MFS; i++ {
-		t[i] = w[i-7*MFS]
-	}
-
-	U.GetX().ToBytes(w[:])
-	for i := 8 * MFS; i < 9*MFS; i++ {
-		t[i] = w[i-8*MFS]
-	}
-	U.GetY().ToBytes(w[:])
-	for i := 9 * MFS; i < 10*MFS; i++ {
-		t[i] = w[i-9*MFS]
 	}
 
 	if sha == amcl.SHA256 {
@@ -308,8 +291,8 @@ func MPIN_RECOMBINE_G1(R1 []byte, R2 []byte, R []byte) int {
 
 /* W=W1+W2 in group G2 */
 func MPIN_RECOMBINE_G2(W1 []byte, W2 []byte, W []byte) int {
-	P := ECP4_fromBytes(W1)
-	Q := ECP4_fromBytes(W2)
+	P := ECP2_fromBytes(W1)
+	Q := ECP2_fromBytes(W2)
 
 	if P.Is_infinity() || Q.Is_infinity() {
 		return INVALID_POINT
@@ -442,7 +425,7 @@ func MPIN_CLIENT_1(sha int, date int, CLIENT_ID []byte, rng *amcl.RAND, X []byte
 
 /* Extract Server Secret SST=S*Q where Q is fixed generator in G2 and S is master secret */
 func MPIN_GET_SERVER_SECRET(S []byte, SST []byte) int {
-	Q := ECP4_generator()
+	Q := ECP2_generator()
 
 	s := FromBytes(S)
 	Q = G2mul(Q, s)
@@ -511,10 +494,9 @@ func MPIN_SERVER_1(sha int, date int, CID []byte, HID []byte, HTID []byte) {
 
 /* Implement step 2 of MPin protocol on server side */
 func MPIN_SERVER_2(date int, HID []byte, HTID []byte, Y []byte, SST []byte, xID []byte, xCID []byte, mSEC []byte, E []byte, F []byte) int {
-	//	q:=NewBIGints(Modulus)
-	Q := ECP4_generator()
+	Q := ECP2_generator()
 
-	sQ := ECP4_fromBytes(SST)
+	sQ := ECP2_fromBytes(SST)
 	if sQ.Is_infinity() {
 		return INVALID_POINT
 	}
@@ -554,7 +536,7 @@ func MPIN_SERVER_2(date int, HID []byte, HTID []byte, Y []byte, SST []byte, xID 
 		return INVALID_POINT
 	}
 
-	var g *FP24
+	var g *FP12
 
 	g = Ate2(Q, R, sQ, P)
 	g = Fexp(g)
@@ -588,24 +570,24 @@ func MPIN_SERVER_2(date int, HID []byte, HTID []byte, Y []byte, SST []byte, xID 
 
 /* Pollards kangaroos used to return PIN error */
 func MPIN_KANGAROO(E []byte, F []byte) int {
-	ge := FP24_fromBytes(E)
-	gf := FP24_fromBytes(F)
+	ge := FP12_fromBytes(E)
+	gf := FP12_fromBytes(F)
 	var distance [TS]int
-	t := NewFP24copy(gf)
+	t := NewFP12copy(gf)
 
-	var table []*FP24
+	var table []*FP12
 	var i int
 	s := 1
 	for m := 0; m < TS; m++ {
 		distance[m] = s
-		table = append(table, NewFP24copy(t))
+		table = append(table, NewFP12copy(t))
 		s *= 2
 		t.usqr()
 	}
 	t.one()
 	dn := 0
 	for j := 0; j < TRAP; j++ {
-		i = t.geta().geta().geta().GetA().lastbits(20) % TS
+		i = t.geta().geta().GetA().lastbits(20) % TS
 		t.Mul(table[i])
 		dn += distance[i]
 	}
@@ -619,7 +601,7 @@ func MPIN_KANGAROO(E []byte, F []byte) int {
 		if steps > 4*TRAP {
 			break
 		}
-		i = ge.geta().geta().geta().GetA().lastbits(20) % TS
+		i = ge.geta().geta().GetA().lastbits(20) % TS
 		ge.Mul(table[i])
 		dm += distance[i]
 		if ge.Equals(t) {
@@ -642,7 +624,7 @@ func MPIN_KANGAROO(E []byte, F []byte) int {
 
 func MPIN_PRECOMPUTE(TOKEN []byte, CID []byte, G1 []byte, G2 []byte) int {
 	var P, T *ECP
-	var g *FP24
+	var g *FP12
 
 	T = ECP_fromBytes(TOKEN)
 	if T.Is_infinity() {
@@ -651,7 +633,7 @@ func MPIN_PRECOMPUTE(TOKEN []byte, CID []byte, G1 []byte, G2 []byte) int {
 
 	P = ECP_mapit(CID)
 
-	Q := ECP4_generator()
+	Q := ECP2_generator()
 
 	g = Ate(Q, T)
 	g = Fexp(g)
@@ -709,8 +691,8 @@ func MPIN_HASH_ALL(sha int, HID []byte, xID []byte, xCID []byte, SEC []byte, Y [
 /* wCID = w.(A+AT) */
 func MPIN_CLIENT_KEY(sha int, G1 []byte, G2 []byte, pin int, R []byte, X []byte, H []byte, wCID []byte, CK []byte) int {
 
-	g1 := FP24_fromBytes(G1)
-	g2 := FP24_fromBytes(G2)
+	g1 := FP12_fromBytes(G1)
+	g2 := FP12_fromBytes(G2)
 	z := FromBytes(R)
 	x := FromBytes(X)
 	h := FromBytes(H)
@@ -745,7 +727,7 @@ func MPIN_CLIENT_KEY(sha int, G1 []byte, G2 []byte, pin int, R []byte, X []byte,
 /* Z=r.A - no time permits involved */
 
 func MPIN_SERVER_KEY(sha int, Z []byte, SST []byte, W []byte, H []byte, HID []byte, xID []byte, xCID []byte, SK []byte) int {
-	sQ := ECP4_fromBytes(SST)
+	sQ := ECP2_fromBytes(SST)
 	if sQ.Is_infinity() {
 		return INVALID_POINT
 	}

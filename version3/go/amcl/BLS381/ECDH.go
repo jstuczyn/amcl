@@ -19,7 +19,7 @@ under the License.
 
 /* Elliptic Curve API high-level functions  */
 
-package XXX
+package BLS381
 
 //import "fmt"
 import "github.com/jstuczyn/amcl/version3/go/amcl"
